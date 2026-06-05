@@ -12,9 +12,11 @@ from session_manager import ensure_logged_in
 
 load_dotenv()
 
-HELLOWORK_BASE = "https://www.hellowork.com"
+HELLOWORK_BASE   = "https://www.hellowork.com"
 BROWSER_DATA_DIR = os.path.abspath("./browser_data")
-SCREENSHOTS_DIR = os.path.abspath("./screenshots")
+SCREENSHOTS_DIR  = os.path.abspath("./screenshots")
+
+from scraper import _chromium_path, _LAUNCH_ARGS
 
 
 def _get_user_agent() -> str:
@@ -57,21 +59,17 @@ async def apply_to_job(job_id: int, job_url: str, cover_message: str) -> dict:
     os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
     async with async_playwright() as pw:
-        context: BrowserContext = await pw.chromium.launch_persistent_context(
+        launch_kwargs = dict(
             user_data_dir=BROWSER_DATA_DIR,
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--no-first-run",
-                "--no-zygote",
-                "--disable-gpu",
-            ],
+            args=_LAUNCH_ARGS,
             user_agent=_get_user_agent(),
             viewport={"width": 1280, "height": 800},
         )
+        chrome = _chromium_path()
+        if chrome:
+            launch_kwargs["executable_path"] = chrome
+        context: BrowserContext = await pw.chromium.launch_persistent_context(**launch_kwargs)
 
         page = await context.new_page()
 

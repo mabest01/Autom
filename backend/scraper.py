@@ -14,9 +14,35 @@ from session_manager import ensure_logged_in
 
 load_dotenv()
 
-HELLOWORK_BASE = "https://www.hellowork.com"
-SEARCH_URL     = f"{HELLOWORK_BASE}/fr-fr/emploi/recherche.html"
+HELLOWORK_BASE   = "https://www.hellowork.com"
+SEARCH_URL       = f"{HELLOWORK_BASE}/fr-fr/emploi/recherche.html"
 BROWSER_DATA_DIR = os.path.abspath("./browser_data")
+
+# Chromium binary — prefer env override, then known system path
+_CHROMIUM_CANDIDATES = [
+    "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    "/opt/pw-browsers/chromium-1117/chrome-linux/chrome",
+]
+
+def _chromium_path() -> Optional[str]:
+    override = os.getenv("CHROMIUM_PATH", "")
+    if override and os.path.isfile(override):
+        return override
+    for p in _CHROMIUM_CANDIDATES:
+        if os.path.isfile(p):
+            return p
+    return None  # let Playwright find it via PLAYWRIGHT_BROWSERS_PATH
+
+_LAUNCH_ARGS = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-accelerated-2d-canvas",
+    "--no-first-run",
+    "--no-zygote",
+    "--disable-gpu",
+    "--ignore-certificate-errors",
+]
 
 
 def _random_delay(min_s: float = 1.0, max_s: float = 3.0):
@@ -245,21 +271,17 @@ async def search_jobs(keywords: list, location: str) -> list[dict]:
     seen_urls = set()
 
     async with async_playwright() as pw:
-        context: BrowserContext = await pw.chromium.launch_persistent_context(
+        launch_kwargs = dict(
             user_data_dir=BROWSER_DATA_DIR,
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--no-first-run",
-                "--no-zygote",
-                "--disable-gpu",
-            ],
+            args=_LAUNCH_ARGS,
             user_agent=_get_user_agent(),
             viewport={"width": 1280, "height": 800},
         )
+        chrome = _chromium_path()
+        if chrome:
+            launch_kwargs["executable_path"] = chrome
+        context: BrowserContext = await pw.chromium.launch_persistent_context(**launch_kwargs)
 
         page = await context.new_page()
 
