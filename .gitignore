@@ -16,6 +16,10 @@ backend/logs/
 backend/screenshots/
 backend/browser_data/
 backend/session.json
+screenshots/
+logs/
+browser_data/
+session.json
 
 # Frontend
 frontend/node_modules/
