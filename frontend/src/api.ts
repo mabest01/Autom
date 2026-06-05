@@ -55,6 +55,14 @@ export interface ApplyResult {
   message: string;
 }
 
+export interface SessionStatus {
+  logged_in: boolean;
+  last_check: string | null;
+  last_login: string | null;
+  consecutive_failures: number;
+  blocked_until: string | null;
+}
+
 // -------------------------
 // API functions
 // -------------------------
@@ -108,6 +116,14 @@ export async function getStats(): Promise<Stats> {
  */
 export async function healthCheck(): Promise<{ status: string }> {
   const response = await api.get<{ status: string }>('/health');
+  return response.data;
+}
+
+/**
+ * Get HelloWork session status (logged in, last check, failures, block).
+ */
+export async function getSessionStatus(): Promise<SessionStatus> {
+  const response = await api.get<SessionStatus>('/session/status');
   return response.data;
 }
 

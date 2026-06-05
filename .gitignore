@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Runtime data (not tracked, generated at runtime)
+backend/jobs.db
+backend/logs/
+backend/screenshots/
+backend/browser_data/
+backend/session.json
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db

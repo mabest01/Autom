@@ -22,10 +22,11 @@ logger.add(
 )
 
 from database import init_db, get_jobs, get_stats, update_job_message
-from models import JobResponse, JobUpdate, StatsResponse, ScrapeResponse, ApplyResponse
+from models import JobResponse, JobUpdate, StatsResponse, ScrapeResponse, ApplyResponse, SessionStatusResponse
 from scheduler import start_scheduler, stop_scheduler
 from scraper import run_scraper
 from auto_apply import apply_to_job, apply_pending_jobs
+from session_manager import get_session_status
 
 
 @asynccontextmanager
@@ -98,6 +99,16 @@ async def _apply_background(job_id: int, job_url: str, cover_message: str):
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok", "service": "HelloWork Automation API"}
+
+
+@app.get("/session/status", response_model=SessionStatusResponse)
+async def session_status():
+    """
+    Return the current HelloWork session state:
+    whether the bot is logged in, when it last checked/logged in,
+    consecutive failure count, and block expiry if suspended.
+    """
+    return SessionStatusResponse(**get_session_status())
 
 
 @app.get("/jobs", response_model=list[JobResponse])

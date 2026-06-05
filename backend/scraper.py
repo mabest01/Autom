@@ -8,15 +8,14 @@ from dotenv import load_dotenv
 from loguru import logger
 from playwright.async_api import async_playwright, Page, BrowserContext
 
-from database import job_exists, insert_job, get_jobs
+from database import job_exists, insert_job, get_jobs, update_job_message
 from ai_generator import generate_message
-from database import update_job_message
+from session_manager import ensure_logged_in
 
 load_dotenv()
 
 HELLOWORK_BASE = "https://www.hellowork.com"
-LOGIN_URL = f"{HELLOWORK_BASE}/fr-fr/compte/connexion.html"
-SEARCH_URL = f"{HELLOWORK_BASE}/fr-fr/emploi/recherche.html"
+SEARCH_URL     = f"{HELLOWORK_BASE}/fr-fr/emploi/recherche.html"
 BROWSER_DATA_DIR = os.path.abspath("./browser_data")
 
 
@@ -36,106 +35,6 @@ def _get_user_agent() -> str:
         )
 
 
-async def _is_logged_in(page: Page) -> bool:
-    """Check if we already have an authenticated session."""
-    try:
-        await page.goto(f"{HELLOWORK_BASE}/fr-fr/", wait_until="domcontentloaded", timeout=30000)
-        await _random_delay(1, 2)
-        # If the page has a user menu / account link, we're logged in
-        logged_in = await page.locator(
-            "a[href*='/compte/'], a[href*='/profil/'], [data-testid='user-menu'], .user-menu, .account-menu"
-        ).count() > 0
-        logger.debug(f"Login check result: {logged_in}")
-        return logged_in
-    except Exception as exc:
-        logger.warning(f"Could not check login status: {exc}")
-        return False
-
-
-async def login(page: Page):
-    """Log in to HelloWork using credentials from environment."""
-    email = os.getenv("HELLOWORK_EMAIL", "")
-    password = os.getenv("HELLOWORK_PASSWORD", "")
-
-    if not email or not password:
-        logger.error("HELLOWORK_EMAIL or HELLOWORK_PASSWORD not set")
-        raise ValueError("Missing HelloWork credentials")
-
-    logger.info("Navigating to HelloWork login page")
-    await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
-    await _random_delay(1, 2)
-
-    # Accept cookies if banner appears
-    try:
-        cookie_btn = page.locator(
-            "button:has-text('Accepter'), button:has-text('Accept'), #didomi-notice-agree-button"
-        )
-        if await cookie_btn.count() > 0:
-            await cookie_btn.first.click()
-            await _random_delay(0.5, 1)
-    except Exception:
-        pass
-
-    # Fill email
-    email_selectors = ['input[name="login"]', 'input[type="email"]', 'input[id="login"]', 'input[placeholder*="mail"]']
-    email_filled = False
-    for sel in email_selectors:
-        try:
-            locator = page.locator(sel).first
-            if await locator.count() > 0:
-                await locator.fill(email)
-                email_filled = True
-                logger.debug(f"Filled email with selector: {sel}")
-                break
-        except Exception:
-            continue
-
-    if not email_filled:
-        logger.error("Could not find email input on login page")
-        raise RuntimeError("Email input not found on HelloWork login page")
-
-    await _random_delay(0.3, 0.8)
-
-    # Fill password
-    password_selectors = ['input[name="password"]', 'input[type="password"]', 'input[id="password"]']
-    password_filled = False
-    for sel in password_selectors:
-        try:
-            locator = page.locator(sel).first
-            if await locator.count() > 0:
-                await locator.fill(password)
-                password_filled = True
-                logger.debug(f"Filled password with selector: {sel}")
-                break
-        except Exception:
-            continue
-
-    if not password_filled:
-        logger.error("Could not find password input on login page")
-        raise RuntimeError("Password input not found on HelloWork login page")
-
-    await _random_delay(0.5, 1)
-
-    # Submit
-    submit_selectors = ['button[type="submit"]', 'input[type="submit"]', 'button:has-text("Connexion")', 'button:has-text("Se connecter")']
-    submitted = False
-    for sel in submit_selectors:
-        try:
-            locator = page.locator(sel).first
-            if await locator.count() > 0:
-                await locator.click()
-                submitted = True
-                logger.debug(f"Clicked submit with selector: {sel}")
-                break
-        except Exception:
-            continue
-
-    if not submitted:
-        raise RuntimeError("Submit button not found on HelloWork login page")
-
-    await page.wait_for_load_state("networkidle", timeout=15000)
-    await _random_delay(1, 2)
-    logger.info("Login submitted successfully")
 
 
 async def _extract_job_detail(page: Page, job_url: str) -> Optional[dict]:
@@ -364,15 +263,11 @@ async def search_jobs(keywords: list, location: str) -> list[dict]:
 
         page = await context.new_page()
 
-        # Login if not already authenticated
-        if not await _is_logged_in(page):
-            logger.info("Not logged in, attempting login...")
-            try:
-                await login(page)
-            except Exception as exc:
-                logger.error(f"Login failed: {exc}")
-                await context.close()
-                return []
+        # Ensure authenticated session (auto-reconnect with failure tracking)
+        if not await ensure_logged_in(page, context):
+            logger.error("Could not establish authenticated session — aborting scrape")
+            await context.close()
+            return []
 
         for keyword in keywords:
             logger.info(f"Searching for: '{keyword}' in '{location}'")

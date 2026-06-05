@@ -8,6 +8,7 @@ from loguru import logger
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 from database import get_jobs, update_job_status
+from session_manager import ensure_logged_in
 
 load_dotenv()
 
@@ -75,6 +76,11 @@ async def apply_to_job(job_id: int, job_url: str, cover_message: str) -> dict:
         page = await context.new_page()
 
         try:
+            # Ensure session is valid before touching any job page
+            if not await ensure_logged_in(page, context):
+                await context.close()
+                return {"success": False, "message": "Session invalid and re-login failed — apply suspended"}
+
             # Navigate to job page
             logger.info(f"Navigating to job page for job_id={job_id}: {job_url}")
             await page.goto(job_url, wait_until="domcontentloaded", timeout=30000)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getJobs, getStats, applyJob, updateMessage, Job, Stats, JobFilters } from './api';
+import { getJobs, getStats, getSessionStatus, applyJob, updateMessage, Job, Stats, JobFilters, SessionStatus } from './api';
 import StatsPanel from './components/StatsPanel';
 import FilterBar from './components/FilterBar';
 import JobsTable from './components/JobsTable';
@@ -15,12 +15,14 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus | null>(null);
 
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const s = await getStats();
+      const [s, session] = await Promise.all([getStats(), getSessionStatus()]);
       setStats(s);
+      setSessionStatus(session);
       setBackendOnline(true);
     } catch (err) {
       setBackendOnline(false);
@@ -176,9 +178,45 @@ const App: React.FC = () => {
                 }}
               />
               <span style={{ fontSize: '13px', color: '#d1d5db' }}>
-                {backendOnline === null ? 'Connecting…' : backendOnline ? 'Online' : 'Offline'}
+                {backendOnline === null ? 'Connecting…' : backendOnline ? 'API Online' : 'API Offline'}
               </span>
             </div>
+
+            {/* HelloWork session indicator */}
+            {backendOnline && (() => {
+              const isBlocked  = !!sessionStatus?.blocked_until;
+              const isLoggedIn = sessionStatus?.logged_in === true;
+              const dotColor   = sessionStatus === null ? '#f59e0b'
+                               : isBlocked              ? '#f97316'
+                               : isLoggedIn             ? '#10b981'
+                               :                          '#ef4444';
+              const dotGlow    = isBlocked  ? '0 0 6px #f97316'
+                               : isLoggedIn ? '0 0 6px #10b981'
+                               :              '0 0 6px #ef4444';
+              const label      = sessionStatus === null ? 'HW…'
+                               : isBlocked             ? 'HW Blocked'
+                               : isLoggedIn            ? 'HW Session ✓'
+                               :                         'HW Logged out';
+              const title      = sessionStatus
+                ? [
+                    `Logged in: ${sessionStatus.logged_in}`,
+                    `Last check: ${sessionStatus.last_check ?? 'never'}`,
+                    `Last login: ${sessionStatus.last_login ?? 'never'}`,
+                    `Failures: ${sessionStatus.consecutive_failures}`,
+                    sessionStatus.blocked_until ? `Blocked until: ${sessionStatus.blocked_until}` : '',
+                  ].filter(Boolean).join('\n')
+                : 'Checking…';
+              return (
+                <div
+                  title={title}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'help' }}
+                >
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%',
+                                background: dotColor, boxShadow: dotGlow }} />
+                  <span style={{ fontSize: '13px', color: '#d1d5db' }}>{label}</span>
+                </div>
+              );
+            })()}
 
             {/* Last refreshed */}
             {lastRefreshed && (

@@ -42,3 +42,11 @@ class ScrapeResponse(BaseModel):
 class ApplyResponse(BaseModel):
     success: bool
     message: str
+
+
+class SessionStatusResponse(BaseModel):
+    logged_in: bool
+    last_check: Optional[str] = None
+    last_login: Optional[str] = None
+    consecutive_failures: int = 0
+    blocked_until: Optional[str] = None
