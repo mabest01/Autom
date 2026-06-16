@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { Job } from '../api';
 
+export type JobsTableActions = {
+  onApply: (jobId: number) => void;
+  onUpdateMessage: (jobId: number, message: string) => void;
+  onRegenerate: (jobId: number) => void;
+  onDelete: (jobId: number) => void;
+};
+
 interface JobsTableProps {
   jobs: Job[];
   onApply: (jobId: number) => void;
   onUpdateMessage: (jobId: number, message: string) => void;
+  onRegenerate: (jobId: number) => void;
+  onDelete: (jobId: number) => void;
   loading: boolean;
 }
 
@@ -54,13 +63,15 @@ const SkeletonRow: React.FC = () => (
   </tr>
 );
 
-const JobsTable: React.FC<JobsTableProps> = ({ jobs, onApply, onUpdateMessage, loading }) => {
+const JobsTable: React.FC<JobsTableProps> = ({ jobs, onApply, onUpdateMessage, onRegenerate, onDelete, loading }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState<string>('');
   const [applyingJobId, setApplyingJobId] = useState<number | null>(null);
   const [savingJobId, setSavingJobId] = useState<number | null>(null);
+  const [regeneratingJobId, setRegeneratingJobId] = useState<number | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<number | null>(null);
 
   const totalPages = Math.ceil(jobs.length / PAGE_SIZE);
   const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -102,6 +113,25 @@ const JobsTable: React.FC<JobsTableProps> = ({ jobs, onApply, onUpdateMessage, l
       await onApply(jobId);
     } finally {
       setApplyingJobId(null);
+    }
+  };
+
+  const handleRegenerate = async (jobId: number) => {
+    setRegeneratingJobId(jobId);
+    try {
+      await onRegenerate(jobId);
+    } finally {
+      setRegeneratingJobId(null);
+    }
+  };
+
+  const handleDelete = async (jobId: number) => {
+    if (!window.confirm('Delete this job? This cannot be undone.')) return;
+    setDeletingJobId(jobId);
+    try {
+      await onDelete(jobId);
+    } finally {
+      setDeletingJobId(null);
     }
   };
 
@@ -198,6 +228,30 @@ const JobsTable: React.FC<JobsTableProps> = ({ jobs, onApply, onUpdateMessage, l
         }
         .btn-cancel:hover {
           background: #e5e7eb;
+        }
+        .btn-regen {
+          background: #fef3c7;
+          color: #92400e;
+        }
+        .btn-regen:hover {
+          background: #fde68a;
+        }
+        .btn-regen:disabled {
+          background: #9ca3af;
+          color: #fff;
+          cursor: not-allowed;
+        }
+        .btn-delete {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+        .btn-delete:hover {
+          background: #fecaca;
+        }
+        .btn-delete:disabled {
+          background: #9ca3af;
+          color: #fff;
+          cursor: not-allowed;
         }
       `}</style>
 
@@ -361,8 +415,8 @@ const JobsTable: React.FC<JobsTableProps> = ({ jobs, onApply, onUpdateMessage, l
                     </td>
 
                     {/* Actions */}
-                    <td style={{ ...cellStyle, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                    <td style={{ ...cellStyle, textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center' }}>
                         {job.status === 'pending' && !isEditing && (
                           <button
                             className="btn-action btn-apply"
@@ -377,7 +431,27 @@ const JobsTable: React.FC<JobsTableProps> = ({ jobs, onApply, onUpdateMessage, l
                             className="btn-action btn-edit"
                             onClick={() => startEditing(job)}
                           >
-                            Edit Msg
+                            Edit
+                          </button>
+                        )}
+                        {!isEditing && (
+                          <button
+                            className="btn-action btn-regen"
+                            onClick={() => handleRegenerate(job.id)}
+                            disabled={regeneratingJobId === job.id}
+                            title="Re-generate AI cover message"
+                          >
+                            {regeneratingJobId === job.id ? '…' : 'AI ↺'}
+                          </button>
+                        )}
+                        {!isEditing && (
+                          <button
+                            className="btn-action btn-delete"
+                            onClick={() => handleDelete(job.id)}
+                            disabled={deletingJobId === job.id}
+                            title="Delete job"
+                          >
+                            ✕
                           </button>
                         )}
                       </div>

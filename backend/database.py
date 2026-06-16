@@ -108,6 +108,26 @@ async def update_job_status(
     logger.info(f"Updated job ID={job_id} status to '{status}'")
 
 
+async def get_job_by_id(job_id: int) -> dict | None:
+    """Fetch a single job by its primary key. Returns None if not found."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def delete_job(job_id: int) -> bool:
+    """Delete a job by ID. Returns True if a row was deleted."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor = await db.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        await db.commit()
+        deleted = cursor.rowcount > 0
+    if deleted:
+        logger.info(f"Deleted job ID={job_id}")
+    return deleted
+
+
 async def get_jobs(
     status: str = None,
     keyword: str = None,

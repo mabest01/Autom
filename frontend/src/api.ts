@@ -127,4 +127,42 @@ export async function getSessionStatus(): Promise<SessionStatus> {
   return response.data;
 }
 
+/**
+ * Re-generate the AI cover message for a job (runs in background on server).
+ */
+export async function regenerateMessage(jobId: number): Promise<{ message: string; job_id: number }> {
+  const response = await api.post(`/jobs/${jobId}/regenerate`);
+  return response.data;
+}
+
+/**
+ * Seed a test job (for local testing without HelloWork access).
+ */
+export async function seedJob(data: {
+  title: string;
+  company: string;
+  url: string;
+  description: string;
+  location?: string;
+  salary?: string;
+}): Promise<Job> {
+  const response = await api.post<Job>('/jobs/seed', data);
+  return response.data;
+}
+
+/**
+ * Delete a job by ID.
+ */
+export async function deleteJob(jobId: number): Promise<void> {
+  await api.delete(`/jobs/${jobId}`);
+}
+
+/**
+ * Fetch a single job by ID.
+ */
+export async function getJob(jobId: number): Promise<Job> {
+  const response = await api.get<Job>(`/jobs/${jobId}`);
+  return response.data;
+}
+
 export default api;

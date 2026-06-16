@@ -297,11 +297,12 @@ async def search_jobs(keywords: list, location: str) -> list[dict]:
 
             for page_num in range(1, 4):  # Up to 3 pages
                 try:
+                    search_days = os.getenv("SEARCH_DAYS", "7")
                     params = {
                         "k": keyword,
                         "l": location,
                         "c": "Alternance",
-                        "d": "1",  # Last 24h
+                        "d": search_days,   # configurable, default 7 days
                         "p": str(page_num),
                     }
                     search_full_url = f"{SEARCH_URL}?{urlencode(params)}"

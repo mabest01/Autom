@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getJobs, getStats, getSessionStatus, applyJob, updateMessage, Job, Stats, JobFilters, SessionStatus } from './api';
+import {
+  getJobs, getStats, getSessionStatus, applyJob, updateMessage,
+  regenerateMessage, deleteJob, seedJob,
+  Job, Stats, JobFilters, SessionStatus,
+} from './api';
 import StatsPanel from './components/StatsPanel';
 import FilterBar from './components/FilterBar';
 import JobsTable from './components/JobsTable';
@@ -85,12 +89,51 @@ const App: React.FC = () => {
   const handleUpdateMessage = async (jobId: number, message: string) => {
     try {
       await updateMessage(jobId, message);
-      // Update local state immediately
       setJobs((prev) =>
         prev.map((j) => (j.id === jobId ? { ...j, generated_message: message } : j))
       );
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to update message');
+    }
+  };
+
+  const handleRegenerate = async (jobId: number) => {
+    try {
+      await regenerateMessage(jobId);
+      // Poll once after 3s to pick up the new message
+      setTimeout(() => refreshAll(filters), 3000);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to regenerate message');
+    }
+  };
+
+  const handleDelete = async (jobId: number) => {
+    try {
+      await deleteJob(jobId);
+      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+      fetchStats();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to delete job');
+    }
+  };
+
+  const handleSeedJob = async () => {
+    try {
+      const seeded = await seedJob({
+        title: 'Alternance Développeur Full-Stack',
+        company: 'TechStartup Paris',
+        url: `https://hellowork.com/test/seed-${Date.now()}`,
+        description:
+          'Nous cherchons un alternant développeur Full-Stack pour rejoindre notre équipe. ' +
+          'Compétences requises : Python (FastAPI/Django), React, Docker, PostgreSQL, Git, Agile/Scrum. ' +
+          'Durée : 2 ans à partir de septembre 2026. Localisation : Paris 9ème.',
+        location: 'Paris',
+        salary: '900€/mois',
+      });
+      setJobs((prev) => [seeded, ...prev]);
+      fetchStats();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to seed test job');
     }
   };
 
@@ -225,6 +268,26 @@ const App: React.FC = () => {
               </span>
             )}
 
+            {/* Seed test job button */}
+            <button
+              onClick={handleSeedJob}
+              title="Insert a sample job with AI-generated message for testing"
+              style={{
+                background: 'rgba(139,92,246,0.3)',
+                border: '1px solid rgba(139,92,246,0.5)',
+                borderRadius: '8px',
+                color: '#e9d5ff',
+                padding: '6px 14px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.5)')}
+              onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.3)')}
+            >
+              + Seed Test Job
+            </button>
+
             {/* Manual refresh button */}
             <button
               onClick={() => refreshAll(filters)}
@@ -297,6 +360,8 @@ const App: React.FC = () => {
           jobs={jobs}
           onApply={handleApply}
           onUpdateMessage={handleUpdateMessage}
+          onRegenerate={handleRegenerate}
+          onDelete={handleDelete}
           loading={loadingJobs}
         />
       </main>
